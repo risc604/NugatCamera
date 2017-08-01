@@ -3,6 +3,7 @@ package com.example.tomcat.nugatcamera;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -39,6 +40,7 @@ public class MainActivity extends AppCompatActivity
     private static final int TAKE_PHOTO_REQUEST_CODE = 3;
     private static final int CHOICE_ALBUM_REQUEST_CODE = 4;
     private static final int CORP_PHOTO_REQUEST_CODE = 5;
+    private static final String PROVIDER_PATH = "com.example.tomcat.nugatcamera.provider";
 
     //private enum InnerRequestCode
     //{
@@ -62,7 +64,8 @@ public class MainActivity extends AppCompatActivity
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Log.i(TAG, "onCreate(), savedInstanceState: " + savedInstanceState);
+        Log.i(TAG, "onCreate(), savedInstanceState: " + savedInstanceState +
+        ", PROVIDER_PATH: " + PROVIDER_PATH);
 
         initView();
         initControl();
@@ -214,7 +217,7 @@ public class MainActivity extends AppCompatActivity
         Log.i(TAG, "file: " + file.getPath());
         if (Build.VERSION.SDK_INT >= 24)
         {
-            photoUri = FileProvider.getUriForFile(this, "com.example.tomcat.nugatcamera.provider", file);
+            photoUri = FileProvider.getUriForFile(this, PROVIDER_PATH, file);
         }
         else
         {
