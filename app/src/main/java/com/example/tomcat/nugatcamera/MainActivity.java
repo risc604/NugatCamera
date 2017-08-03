@@ -5,8 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
@@ -25,6 +28,7 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -98,8 +102,7 @@ public class MainActivity extends AppCompatActivity
             case WRITE_SDCARD_PERMISSION_REQUEST_CODE:
                 if ((grantResults.length > 0) &&
                     (grantResults[0] == PackageManager.PERMISSION_GRANTED))
-                {
-                }
+                { }
                 else
                 {
                     Toast.makeText(this, "SD card write permission decline.", Toast.LENGTH_SHORT).show();
@@ -129,6 +132,7 @@ public class MainActivity extends AppCompatActivity
                 //    Bitmap imageBitmp = (Bitmap) extras.get("data");
                 //    mImageView.setImageBitmap(imageBitmp);
                 //}
+                Log.i(TAG, "photoUri: " + photoUri);
                 cropPhoto(photoUri);
                 break;
 
@@ -137,10 +141,27 @@ public class MainActivity extends AppCompatActivity
                 break;
 
             case CORP_PHOTO_REQUEST_CODE:
+                 //= getOriententionBitmap(photoUri.getPath());
                 File file = new File(photoUri.getPath());
                 if (file.exists())
                 {
                     Bitmap bitmap = BitmapFactory.decodeFile(photoUri.getPath());
+                    //Bitmap bitmap = getOriententionBitmap(photoUri.getPath());
+                    try
+                    {
+                        bitmap = rotateImageIfRequired(bitmap, this, photoUri);
+                        int degree = getOrientention(photoUri.getPath());
+                        if (degree > 0)
+                        {
+                            bitmap = rotateImage(bitmap, degree);
+                        }
+                    }
+                    catch (IOException e)
+                    {
+                        e.printStackTrace();
+                    }
+
+                    bitmap = resize(bitmap, 800, 600);
                     mImageView.setImageBitmap(bitmap);
                 }
                 else
@@ -200,7 +221,7 @@ public class MainActivity extends AppCompatActivity
     private void startCamera()
     {
         Log.i(TAG, "startCamera() ... ");
-        File file = new File(getExternalCacheDir(), "image.png");
+        File file = new File(getExternalCacheDir(), "image.jpg");
         try
         {
             if (file.exists())
@@ -247,6 +268,177 @@ public class MainActivity extends AppCompatActivity
         startActivityForResult(cropPhotoIntent, CORP_PHOTO_REQUEST_CODE);
 
     }
+
+    //public static Bitmap rotateImage(Bitmap img, int degree)
+    private Bitmap rotateImage(Bitmap img, int degree)
+    {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(degree);
+        Bitmap rotatedImg = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
+        return rotatedImg;
+    }
+
+    //public static int getOrientention(String filePath)
+    private int getOrientention(String filePath)
+    {
+        File f = new File(filePath);
+        ExifInterface exif = null;
+        try {
+            exif = new ExifInterface(f.getPath());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+        if (exif != null) {
+            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL);
+
+            Log.i(TAG, "orientation: " + orientation + ", exif: " + exif.toString());
+
+            int angle = 0;
+
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    angle = 90;
+                    break;
+
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    angle = 180;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    angle = 270;
+                    break;
+
+                default:
+                    Log.e(TAG, "Error !! orientation: " + orientation);
+                    break;
+            }
+
+            return angle;
+        }
+        else
+        {
+            Log.e(TAG, "Error !! exif is null, no Orientention info, degree set 0 !!");
+            return 0;
+        }
+    }
+
+    //public static Bitmap rotateImageIfRequired(Bitmap img, Context context, Uri selectedImage) throws IOException
+    private Bitmap rotateImageIfRequired(Bitmap img, Context context, Uri selectedImage) throws IOException
+    {
+        if (selectedImage.getScheme().equals("content"))
+        {
+            String[] projection = { MediaStore.Images.ImageColumns.ORIENTATION };
+            Cursor c = context.getContentResolver().query(selectedImage, projection, null, null, null);
+            if (c.moveToFirst())
+            {
+                final int rotation = c.getInt(0);
+                Log.w(TAG, "rotation: " + rotation);
+
+                c.close();
+                return rotateImage(img, rotation);
+            }
+            return img;
+        }
+        else
+        {
+            ExifInterface ei = new ExifInterface(selectedImage.getPath());
+            int orientation = ei.getAttributeInt(   ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL);
+            //Timber.d("orientation: %s", orientation);
+            Log.d(TAG, "orientation: " + orientation);
+
+            switch (orientation)
+            {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    return rotateImage(img, 90);
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    return rotateImage(img, 180);
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    return rotateImage(img, 270);
+                default:
+                    return img;
+            }
+        }
+    }
+
+    private Bitmap resize(Bitmap image, int maxWidth, int maxHeight)
+    {
+        if (maxHeight > 0 && maxWidth > 0)
+        {
+            int width = image.getWidth();
+            int height = image.getHeight();
+            float ratioBitmap = (float) width / (float) height;
+            float ratioMax = (float) maxWidth / (float) maxHeight;
+
+            int finalWidth = maxWidth;
+            int finalHeight = maxHeight;
+            if (ratioMax > 1)
+            {
+                finalWidth = (int) ((float)maxHeight * ratioBitmap);
+            }
+            else
+            {
+                finalHeight = (int) ((float)maxWidth / ratioBitmap);
+            }
+            image = Bitmap.createScaledBitmap(image, finalWidth, finalHeight, true);
+            return image;
+        }
+        else
+        {
+            return image;
+        }
+    }
+
+
+
+    ////public static Bitmap getOriententionBitmap(String filePath)
+    //private Bitmap getOriententionBitmap(String filePath)
+    //{
+    //    Bitmap myBitmap = null;
+    //    //Bitmap myBitmap = decodeFile(new File(filePath));
+    //    try
+    //    {
+    //        File f = new File(filePath);
+    //
+    //        ExifInterface exif = new ExifInterface(f.getPath());
+    //        int orientation = exif.getAttributeInt( ExifInterface.TAG_ORIENTATION,
+    //                ExifInterface.ORIENTATION_NORMAL);
+    //
+    //        Log.d(TAG, "orientation: " + orientation);
+    //        int angle = 0;
+    //        if (orientation == ExifInterface.ORIENTATION_ROTATE_90)
+    //        {
+    //            angle = 90;
+    //        }
+    //        else if (orientation == ExifInterface.ORIENTATION_ROTATE_180)
+    //        {
+    //            angle = 180;
+    //        }
+    //        else if (orientation == ExifInterface.ORIENTATION_ROTATE_270)
+    //        {
+    //            angle = 270;
+    //        }
+    //
+    //        Matrix mat = new Matrix();
+    //        mat.postRotate(angle);
+    //
+    //        Bitmap bmp1 = BitmapFactory.decodeStream(new FileInputStream(f), null, null);
+    //        myBitmap = Bitmap.createBitmap( bmp1, 0, 0, bmp1.getWidth(),
+    //                bmp1.getHeight(), mat, true);
+    //    }
+    //    catch (IOException e)
+    //    {
+    //        Log.w("TAG", "-- Error in setting image");
+    //    }
+    //    catch(OutOfMemoryError oom)
+    //    {
+    //        Log.w("TAG", "-- OOM Error in setting image");
+    //    }
+    //    return myBitmap;
+    //}
 
 
 
