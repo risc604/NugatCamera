@@ -13,6 +13,7 @@ import android.media.ExifInterface;
 import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -29,6 +30,8 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -142,8 +145,9 @@ public class MainActivity extends AppCompatActivity
 
             case CORP_PHOTO_REQUEST_CODE:
                  //= getOriententionBitmap(photoUri.getPath());
-                File file = new File(photoUri.getPath());
-                if (file.exists())
+                file.delete();
+                File gFile = new File(photoUri.getPath());
+                if (gFile.exists())
                 {
                     Bitmap bitmap = BitmapFactory.decodeFile(photoUri.getPath());
                     //Bitmap bitmap = getOriententionBitmap(photoUri.getPath());
@@ -161,8 +165,26 @@ public class MainActivity extends AppCompatActivity
                         e.printStackTrace();
                     }
 
-                    bitmap = resize(bitmap, 800, 600);
+                    bitmap = resize(bitmap, 1920, 1080);
                     mImageView.setImageBitmap(bitmap);
+
+                    try {
+                        String bmpFilePath = Environment.getExternalStorageDirectory() +
+                                "/mt24hr/" + System.currentTimeMillis() + ".jpeg";
+
+                        FileOutputStream fos = new FileOutputStream(new File(bmpFilePath));
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                        Log.i(TAG, "bmpFilePath: " + bmpFilePath +
+                                ", size: " + ((float)fos.getChannel().size())/1024 + " Kbytes");
+                        fos.close();
+                    } catch (FileNotFoundException e) {
+                        Log.d(TAG, "File not found: " + e.getMessage());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Error accessing file: " + e.getMessage());
+                    }
+                    //Log.i(TAG, "file: " + file.getAbsolutePath() );
+                    gFile.delete();
+                    //file.delete();
                 }
                 else
                 {
@@ -218,10 +240,12 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    File file = null;
     private void startCamera()
     {
         Log.i(TAG, "startCamera() ... ");
-        File file = new File(getExternalCacheDir(), "image.jpg");
+        //File file = new File(getExternalCacheDir(), "image.jpg");
+        file = new File(getExternalCacheDir(), "image.jpg");
         try
         {
             if (file.exists())
@@ -264,7 +288,7 @@ public class MainActivity extends AppCompatActivity
         Intent cropPhotoIntent = new Intent("com.android.camera.action.CROP");
         cropPhotoIntent.setDataAndType(inputUri, "image/*");
         cropPhotoIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        cropPhotoIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri = Uri.parse("file:////sdcard/image_output.png"));
+        cropPhotoIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri = Uri.parse("file:////sdcard/image_output.jpg"));
         startActivityForResult(cropPhotoIntent, CORP_PHOTO_REQUEST_CODE);
 
     }
