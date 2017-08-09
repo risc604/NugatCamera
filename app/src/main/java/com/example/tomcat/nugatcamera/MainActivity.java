@@ -2,6 +2,7 @@ package com.example.tomcat.nugatcamera;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -19,6 +20,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -145,7 +147,8 @@ public class MainActivity extends AppCompatActivity
 
             case CORP_PHOTO_REQUEST_CODE:
                  //= getOriententionBitmap(photoUri.getPath());
-                file.delete();
+                if (file!=null && file.exists())
+                    file.delete();
                 File gFile = new File(photoUri.getPath());
                 if (gFile.exists())
                 {
@@ -154,11 +157,11 @@ public class MainActivity extends AppCompatActivity
                     try
                     {
                         bitmap = rotateImageIfRequired(bitmap, this, photoUri);
-                        int degree = getOrientention(photoUri.getPath());
-                        if (degree > 0)
-                        {
-                            bitmap = rotateImage(bitmap, degree);
-                        }
+                        //int degree = getOrientention(photoUri.getPath());
+                        //if (degree > 0)
+                        //{
+                        //    bitmap = rotateImage(bitmap, degree);
+                        //}
                     }
                     catch (IOException e)
                     {
@@ -197,27 +200,38 @@ public class MainActivity extends AppCompatActivity
     }
 
 
-    public void ImgBtnOnClick(View view)
+    public void ImgBtnOnClick(final View view)
     {
         Log.i(TAG, "ImgBtnOnClick(),  view: " + view.toString());
-        if (view == mButton)
-        {
-            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                    != PackageManager.PERMISSION_GRANTED)
-            {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA},
-                        TAKE_PHOTO_PERMISSION_REQUEST_CODE);
-            }
-            else
-            {
-                startCamera();
-            }
-        }
-        else
-        {
-            choiceAlbum();
-        }
 
+        CharSequence[] items = {"相 簿", "相 機"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        builder.setTitle("選 取 照 片");
+        builder.setItems(items, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int which)
+            {
+                switch (which)
+                {
+                    case 0:     // Album
+                        choiceAlbum();
+                        break;
+
+                    case 1:     // Camera
+                        //startCamera();
+                        showTakePicture();
+                        break;
+
+                    default:
+                        Toast.makeText(view.getContext(), "Error !!", Toast.LENGTH_SHORT).show();
+                        break;
+                }
+            }
+        });
+
+        builder.show();
     }
 
     private void initView()
@@ -239,6 +253,22 @@ public class MainActivity extends AppCompatActivity
                     WRITE_SDCARD_PERMISSION_REQUEST_CODE);
         }
     }
+
+    private void showTakePicture()
+    {
+        Log.i(TAG, "showTakePicture()...");
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
+        {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
+                    TAKE_PHOTO_PERMISSION_REQUEST_CODE);
+        }
+        else
+        {
+            startCamera();
+        }
+    }
+
 
     File file = null;
     private void startCamera()
@@ -352,7 +382,8 @@ public class MainActivity extends AppCompatActivity
     //public static Bitmap rotateImageIfRequired(Bitmap img, Context context, Uri selectedImage) throws IOException
     private Bitmap rotateImageIfRequired(Bitmap img, Context context, Uri selectedImage) throws IOException
     {
-        if (selectedImage.getScheme().equals("content"))
+        Log.i(TAG, "rotateImageIfRequired(), selectedImage: " + selectedImage);
+        if (selectedImage.getScheme().equals("content") )
         {
             String[] projection = { MediaStore.Images.ImageColumns.ORIENTATION };
             Cursor c = context.getContentResolver().query(selectedImage, projection, null, null, null);
@@ -364,6 +395,32 @@ public class MainActivity extends AppCompatActivity
                 c.close();
                 return rotateImage(img, rotation);
             }
+            return img;
+        }
+        else if (selectedImage.getScheme().equals("file"))
+        {
+            int degree = getOrientention(selectedImage.getPath());
+            if (degree > 0)
+                img = rotateImage(img, degree);
+
+            Log.i(TAG, "file path: " + selectedImage.getPath() + ", degree: " + degree);
+
+            //String[] projection = { MediaStore.Images.Media.DATA };
+            //Cursor c = context.getContentResolver().query(selectedImage, projection, null, null, null);
+
+            //int column_index = c.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            //c.moveToFirst();
+            //String tmpFileName = c.getString(column_index);
+            //Log.i(TAG, "column_index: " + column_index + ", tmpFileName: " + tmpFileName);
+
+            //if (c.moveToFirst())
+            //{
+            //    final int rotation = c.getInt(0);
+            //    Log.w(TAG, "rotation: " + rotation);
+            //
+            //    c.close();
+            //    return rotateImage(img, rotation);
+            //}
             return img;
         }
         else
